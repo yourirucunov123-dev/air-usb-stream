@@ -3,35 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirUSB Live - Global Stream</title>
+    <title>AirUSB Live - Ultimate Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        body { margin: 0; background: #000; color: #fff; font-family: -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Адаптивная сетка */
-        #app-container { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
-        @media (max-width: 768px) { #app-container { flex-direction: column; } #chat-side { width: 100% !important; height: 30vh; border-left: none !important; border-top: 1px solid #333; } }
+        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
 
-        #main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: #080808; }
-        #setup { text-align: center; z-index: 10; padding: 20px; max-width: 90%; }
-        #qrcode { background: white; padding: 10px; border-radius: 10px; display: inline-block; margin: 15px 0; }
+        /* Видео область */
+        #main { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
         video { width: 100%; height: 100%; object-fit: contain; display: none; }
-        
-        /* Чат */
-        #chat-side { width: 350px; background: #111; border-left: 1px solid #333; display: flex; flex-direction: column; }
-        #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px; }
-        .msg { padding: 8px 12px; background: #222; border-radius: 8px; line-height: 1.4; word-break: break-all; }
-        .msg.me { border-left: 3px solid #00ff88; }
+
+        /* Боковой чат (ПК и вертикальный телефон) */
+        #chat-side { width: 350px; background: #111; border-left: 1px solid #333; display: flex; flex-direction: column; z-index: 100; transition: 0.3s; }
+
+        /* Стили чата на телефоне */
+        @media (max-width: 768px) {
+            /* Вертикально */
+            @media (orientation: portrait) {
+                #app-container { flex-direction: column; }
+                #chat-side { width: 100%; height: 35vh; border-left: none; border-top: 1px solid #333; }
+                #toggleChat { display: none !important; }
+            }
+            /* Горизонтально */
+            @media (orientation: landscape) {
+                #chat-side { 
+                    position: absolute; right: 0; top: 0; bottom: 0; 
+                    width: 280px; background: rgba(0,0,0,0.8); 
+                    transform: translateX(100%); /* Скрыт за экраном */
+                    backdrop-filter: blur(10px);
+                }
+                #chat-side.open { transform: translateX(0); }
+                #toggleChat { display: block !important; }
+            }
+        }
+
+        #messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { padding: 8px 12px; background: #222; border-radius: 12px; font-size: 0.9em; max-width: 85%; }
+        .msg.me { align-self: flex-end; background: #004d33; border-bottom-right-radius: 2px; }
         .msg.host { border-left: 3px solid #ff0055; background: #2a1010; }
-        
-        #chat-input { padding: 15px; background: #0a0a0a; display: flex; gap: 10px; }
+
+        #chat-input { padding: 10px; background: #000; display: flex; gap: 8px; }
         input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 20px; outline: none; }
-        input:focus { border-color: #00ff88; }
         
-        .btn { background: #00ff88; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn:hover { transform: scale(1.05); }
-        #viewer-count { position: absolute; top: 15px; right: 15px; background: rgba(255,0,0,0.8); padding: 5px 12px; border-radius: 20px; font-size: 0.75em; font-weight: bold; z-index: 20; }
+        .btn { background: #00ff88; color: #000; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        
+        /* Кнопка управления чатом (горизонтальный режим) */
+        #toggleChat { position: absolute; bottom: 20px; right: 20px; z-index: 200; display: none; background: rgba(0,255,136,0.5); }
+
+        #setup { text-align: center; padding: 20px; z-index: 10; }
+        #qrcode { background: white; padding: 10px; border-radius: 10px; display: inline-block; margin: 10px 0; }
+        #viewer-count { position: absolute; top: 10px; left: 10px; background: rgba(255,0,0,0.8); padding: 4px 10px; border-radius: 10px; font-size: 0.7em; z-index: 50; }
     </style>
 </head>
 <body>
@@ -39,24 +62,25 @@
     <div id="app-container">
         <div id="main">
             <div id="viewer-count" style="display:none;">LIVE: 0</div>
+            <button id="toggleChat" class="btn">Чат</button>
             
             <div id="setup">
                 <h1>AirUSB <span style="color:#00ff88">Live</span></h1>
                 <p id="status">Инициализация...</p>
                 <div id="qrcode"></div>
                 <br>
-                <button id="startStream" class="btn" style="display:none;">Начать эфир</button>
-                <button id="mobileStart" class="btn" style="display:none;">Смотреть трансляцию</button>
+                <button id="startStream" class="btn" style="display:none;">Начать трансляцию</button>
+                <button id="mobileStart" class="btn" style="display:none;">Смотреть</button>
             </div>
 
             <video id="remoteVideo" autoplay playsinline controls></video>
         </div>
 
         <div id="chat-side">
-            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.9em; color: #888; font-weight: bold;">ЧАТ ТРАНСЛЯЦИИ</div>
+            <div style="padding: 10px; border-bottom: 1px solid #333; font-size: 0.8em; color: #888;">ЧАТ</div>
             <div id="messages"></div>
             <div id="chat-input">
-                <input type="text" id="msgText" placeholder="Сообщение...">
+                <input type="text" id="msgText" placeholder="Текст...">
                 <button class="btn" id="sendBtn">></button>
             </div>
         </div>
@@ -72,19 +96,24 @@
         const sendBtn = document.getElementById('sendBtn');
         const messages = document.getElementById('messages');
         const viewerDisplay = document.getElementById('viewer-count');
+        const toggleChat = document.getElementById('toggleChat');
+        const chatSide = document.getElementById('chat-side');
 
         const peer = new Peer();
         let connections = [];
         let myStream = null;
         let isHost = false;
 
-        function addMessage(text, sender, type = 'me') {
+        function addMessage(text, sender, type = '') {
             const div = document.createElement('div');
             div.className = `msg ${type}`;
-            div.innerHTML = `<small style="display:block; color:#888; margin-bottom:2px">${sender}</small>${text}`;
+            div.innerHTML = `<small style="display:block;color:#00ff88;font-size:0.7em">${sender}</small>${text}`;
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
         }
+
+        // Переключатель чата для горизонтального режима
+        toggleChat.onclick = () => chatSide.classList.toggle('open');
 
         peer.on('open', (id) => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -92,33 +121,26 @@
             const fullUrl = window.location.origin + window.location.pathname + '?join=' + id;
 
             if (joinId) {
-                // ЛОГИКА ЗРИТЕЛЯ
                 isHost = false;
                 qrcodeContainer.style.display = 'none';
                 mobileStartBtn.style.display = 'inline-block';
-                status.innerText = "Комната готова";
+                status.innerText = "Подключено";
                 
                 let conn = peer.connect(joinId);
-                connections.push(conn);
+                connections = [conn];
 
-                mobileStartBtn.onclick = () => {
-                    mobileStartBtn.style.display = 'none';
-                    status.innerText = "Подключение к видео...";
-                };
-
-                // Отправка сообщения зрителем
-                sendBtn.onclick = () => {
-                    if(msgText.value) {
-                        conn.send({ type: 'chat', text: msgText.value, user: 'Зритель' });
-                        addMessage(msgText.value, "Вы (Зритель)", "me");
-                        msgText.value = "";
-                    }
-                };
+                conn.on('open', () => {
+                    sendBtn.onclick = () => {
+                        if(msgText.value) {
+                            conn.send({ type: 'chat', text: msgText.value, user: 'Зритель' });
+                            addMessage(msgText.value, "Вы", "me");
+                            msgText.value = "";
+                        }
+                    };
+                });
 
                 conn.on('data', (data) => {
-                    if(data.type === 'chat') {
-                        addMessage(data.text, data.user, data.user === 'Ведущий' ? 'host' : '');
-                    }
+                    if(data.type === 'chat') addMessage(data.text, data.user, data.user === 'Ведущий' ? 'host' : '');
                 });
 
                 peer.on('call', (call) => {
@@ -129,33 +151,26 @@
                         remoteVideo.srcObject = s;
                     });
                 });
-
             } else {
-                // ЛОГИКА ВЕДУЩЕГО
                 isHost = true;
                 new QRCode(qrcodeContainer, fullUrl);
-                status.innerHTML = `Ссылка для зрителей:<br><small style="color:#00ff88; font-size:10px">${fullUrl}</small>`;
+                status.innerHTML = `Эфир: <small>${fullUrl}</small>`;
                 startBtn.style.display = 'inline-block';
 
                 startBtn.onclick = async () => {
-                    try {
-                        myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                        status.innerText = "В ЭФИРЕ";
-                        startBtn.style.background = "#ff0000";
-                        startBtn.innerText = "LIVE";
-                        viewerDisplay.style.display = 'block';
-                    } catch(e) { alert("Нужно разрешить захват экрана!"); }
+                    myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                    status.innerText = "В ЭФИРЕ";
+                    startBtn.style.display = 'none';
+                    viewerDisplay.style.display = 'block';
                 };
 
-                // Отправка сообщения ведущим всем зрителям
+                // Исправленная отправка у Ведущего
                 sendBtn.onclick = () => {
-                    if(msgText.value && connections.length > 0) {
+                    if(msgText.value) {
                         const val = msgText.value;
+                        addMessage(val, "Вы (Ведущий)", "me host");
                         connections.forEach(c => c.send({ type: 'chat', text: val, user: 'Ведущий' }));
-                        addMessage(val, "Вы (Ведущий)", "host");
                         msgText.value = "";
-                    } else if (connections.length === 0) {
-                        alert("Зрителей еще нет!");
                     }
                 };
 
@@ -166,21 +181,18 @@
 
                     conn.on('data', (data) => {
                         if(data.type === 'chat') {
+                            // Исправлено: берем data.text, а не весь объект
                             addMessage(data.text, data.user);
-                            // Рассылка сообщения одного зрителя всем остальным
-                            connections.forEach(c => {
-                                if(c !== conn) c.send(data);
-                            });
+                            // Рассылка другим
+                            connections.forEach(c => { if(c !== conn) c.send(data); });
                         }
-                    });
-                    
-                    conn.on('close', () => {
-                        connections = connections.filter(c => c !== conn);
-                        viewerDisplay.innerText = `LIVE: ${connections.length}`;
                     });
                 });
             }
         });
+
+        // Отправка по Enter
+        msgText.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
     </script>
 </body>
 </html>
