@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirUSB Global - Трансляция экрана</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { margin: 0; background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+        #setup { text-align: center; padding: 20px; z-index: 10; width: 100%; max-width: 500px; }
+        #qrcode { background: white; padding: 15px; border-radius: 10px; display: inline-block; margin: 20px 0; border: 5px solid white; box-shadow: 0 0 30px rgba(0,255,136,0.2); }
+        video { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
+        .btn { background: #00ff88; color: #000; border: none; padding: 15px 30px; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 1.1em; margin: 10px; transition: 0.3s; box-shadow: 0 5px 15px rgba(0,255,136,0.3); }
+        .btn:hover { background: #00cc6e; transform: translateY(-2px); }
+        #status { color: #00ff88; margin-top: 10px; font-weight: bold; }
+        .url-box { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px dashed #333; font-size: 0.8em; word-break: break-all; margin-top: 15px; color: #888; }
+        .info { color: #666; font-size: 0.85em; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="setup">
+        <h1>AirUSB <span style="color:#00ff88">Global</span></h1>
+        <p id="status">Создание комнаты...</p>
+        
+        <div id="qrcode"></div>
+        
+        <div id="urlContainer" style="display:none;">
+            <div class="url-box" id="linkText"></div>
+            <p class="info">Отправь эту ссылку другу в Telegram или WhatsApp</p>
+        </div>
+
+        <button id="startStream" class="btn" style="display:none;">1. Запустить трансляцию</button>
+        <button id="mobileStart" class="btn" style="display:none;">Смотреть со звуком</button>
+    </div>
+
+    <video id="remoteVideo" autoplay playsinline controls></video>
+
+    <script>
+        const status = document.getElementById('status');
+        const qrcodeContainer = document.getElementById('qrcode');
+        const startBtn = document.getElementById('startStream');
+        const mobileStartBtn = document.getElementById('mobileStart');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const setupDiv = document.getElementById('setup');
+        const urlContainer = document.getElementById('urlContainer');
+        const linkText = document.getElementById('linkText');
+
+        const peer = new Peer();
+        let localStream = null;
+
+        peer.on('open', (id) => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinId = urlParams.get('join');
+
+            // Авто-определение ссылки (для локалки или GitHub)
+            const currentUrl = window.location.origin + window.location.pathname;
+            const fullJoinUrl = `${currentUrl}?join=${id}`;
+
+            if (joinId) {
+                // РЕЖИМ ЗРИТЕЛЯ (ДРУГ)
+                status.innerText = "Комната найдена";
+                mobileStartBtn.style.display = 'inline-block';
+                qrcodeContainer.style.display = 'none';
+
+                mobileStartBtn.onclick = () => {
+                    peer.connect(joinId);
+                    mobileStartBtn.style.display = 'none';
+                    status.innerText = "Подключение к стриму...";
+                };
+
+                peer.on('call', (call) => {
+                    call.answer(); 
+                    call.on('stream', (remoteStream) => {
+                        setupDiv.style.display = 'none';
+                        remoteVideo.style.display = 'block';
+                        remoteVideo.srcObject = remoteStream;
+                    });
+                });
+            } else {
+                // РЕЖИМ СТРИМЕРА (ТЫ)
+                new QRCode(qrcodeContainer, {
+                    text: fullJoinUrl,
+                    width: 200,
+                    height: 200,
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+
+                status.innerText = "Ноутбук готов к вещанию";
+                linkText.innerText = fullJoinUrl;
+                urlContainer.style.display = 'block';
+                startBtn.style.display = 'inline-block';
+
+                startBtn.onclick = async () => {
+                    try {
+                        localStream = await navigator.mediaDevices.getDisplayMedia({ 
+                            video: true,
+                            audio: { echoCancellation: true, noiseSuppression: true }
+                        });
+                        status.innerText = "Трансляция активна! Ждем зрителей...";
+                        startBtn.innerText = "Трансляция идет";
+                        startBtn.style.background = "#333";
+                        startBtn.style.color = "#888";
+                    } catch (err) {
+                        alert("Ошибка захвата: " + err.name);
+                    }
+                };
+
+                peer.on('connection', (conn) => {
+                    if (localStream) {
+                        status.innerText = "Зритель подключился!";
+                        setTimeout(() => {
+                            peer.call(conn.peer, localStream);
+                        }, 1000);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
