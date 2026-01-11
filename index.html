@@ -3,39 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirUSB Global - Трансляция экрана</title>
+    <title>AirUSB Global + Chat</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { margin: 0; background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
-        #setup { text-align: center; padding: 20px; z-index: 10; width: 100%; max-width: 500px; }
-        #qrcode { background: white; padding: 15px; border-radius: 10px; display: inline-block; margin: 20px 0; border: 5px solid white; box-shadow: 0 0 30px rgba(0,255,136,0.2); }
-        video { width: 100vw; height: 100vh; object-fit: contain; display: none; background: #000; }
-        .btn { background: #00ff88; color: #000; border: none; padding: 15px 30px; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 1.1em; margin: 10px; transition: 0.3s; box-shadow: 0 5px 15px rgba(0,255,136,0.3); }
-        .btn:hover { background: #00cc6e; transform: translateY(-2px); }
-        #status { color: #00ff88; margin-top: 10px; font-weight: bold; }
-        .url-box { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px dashed #333; font-size: 0.8em; word-break: break-all; margin-top: 15px; color: #888; }
-        .info { color: #666; font-size: 0.85em; margin-top: 20px; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+        #setup { text-align: center; z-index: 10; padding: 20px; }
+        #qrcode { background: white; padding: 10px; border-radius: 10px; display: inline-block; margin: 15px 0; }
+        video { width: 100%; height: 100%; object-fit: contain; display: none; }
+        
+        /* Чат */
+        #chat-side { width: 300px; background: #111; border-left: 1px solid #333; display: flex; flex-direction: column; transition: 0.3s; }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.9em; }
+        .msg { margin-bottom: 10px; padding: 8px; background: #222; border-radius: 5px; border-left: 3px solid #00ff88; }
+        #chat-input { padding: 15px; background: #000; display: flex; gap: 10px; }
+        input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 5px; }
+        
+        .btn { background: #00ff88; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        #viewer-count { position: absolute; top: 10px; right: 10px; background: rgba(255,0,0,0.7); padding: 5px 10px; border-radius: 15px; font-size: 0.8em; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="setup">
-        <h1>AirUSB <span style="color:#00ff88">Global</span></h1>
-        <p id="status">Создание комнаты...</p>
+    <div id="main">
+        <div id="viewer-count">Зрителей: 0</div>
         
-        <div id="qrcode"></div>
-        
-        <div id="urlContainer" style="display:none;">
-            <div class="url-box" id="linkText"></div>
-            <p class="info">Отправь эту ссылку другу в Telegram или WhatsApp</p>
+        <div id="setup">
+            <h1>AirUSB <span style="color:#00ff88">Live</span></h1>
+            <p id="status">Инициализация...</p>
+            <div id="qrcode"></div>
+            <br>
+            <button id="startStream" class="btn" style="display:none;">Начать эфир</button>
+            <button id="mobileStart" class="btn" style="display:none;">Смотреть трансляцию</button>
         </div>
 
-        <button id="startStream" class="btn" style="display:none;">1. Запустить трансляцию</button>
-        <button id="mobileStart" class="btn" style="display:none;">Смотреть со звуком</button>
+        <video id="remoteVideo" autoplay playsinline controls></video>
     </div>
 
-    <video id="remoteVideo" autoplay playsinline controls></video>
+    <div id="chat-side">
+        <div style="padding: 15px; border-bottom: 1px solid #333; font-weight: bold;">Чат стрима</div>
+        <div id="messages"></div>
+        <div id="chat-input">
+            <input type="text" id="msgText" placeholder="Написать в чат...">
+            <button class="btn" id="sendBtn">></button>
+        </div>
+    </div>
 
     <script>
         const status = document.getElementById('status');
@@ -43,77 +56,83 @@
         const startBtn = document.getElementById('startStream');
         const mobileStartBtn = document.getElementById('mobileStart');
         const remoteVideo = document.getElementById('remoteVideo');
-        const setupDiv = document.getElementById('setup');
-        const urlContainer = document.getElementById('urlContainer');
-        const linkText = document.getElementById('linkText');
+        const msgText = document.getElementById('msgText');
+        const sendBtn = document.getElementById('sendBtn');
+        const messages = document.getElementById('messages');
+        const viewerDisplay = document.getElementById('viewer-count');
 
         const peer = new Peer();
-        let localStream = null;
+        let connections = [];
+        let myStream = null;
+
+        function addMessage(text, owner = "Зритель") {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<b style="color:#00ff88">${owner}:</b> ${text}`;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
 
         peer.on('open', (id) => {
             const urlParams = new URLSearchParams(window.location.search);
             const joinId = urlParams.get('join');
-
-            // Авто-определение ссылки (для локалки или GitHub)
-            const currentUrl = window.location.origin + window.location.pathname;
-            const fullJoinUrl = `${currentUrl}?join=${id}`;
+            const fullUrl = window.location.origin + window.location.pathname + '?join=' + id;
 
             if (joinId) {
-                // РЕЖИМ ЗРИТЕЛЯ (ДРУГ)
-                status.innerText = "Комната найдена";
+                // ТЕЛЕФОН / ДРУГ
+                document.getElementById('setup').style.display = 'none';
                 mobileStartBtn.style.display = 'inline-block';
+                document.getElementById('setup').style.display = 'block';
                 qrcodeContainer.style.display = 'none';
-
+                
+                let conn = peer.connect(joinId);
+                
                 mobileStartBtn.onclick = () => {
-                    peer.connect(joinId);
                     mobileStartBtn.style.display = 'none';
-                    status.innerText = "Подключение к стриму...";
+                    status.innerText = "Подключение...";
+                };
+
+                sendBtn.onclick = () => {
+                    if(msgText.value) {
+                        conn.send(msgText.value);
+                        addMessage(msgText.value, "Вы");
+                        msgText.value = "";
+                    }
                 };
 
                 peer.on('call', (call) => {
-                    call.answer(); 
-                    call.on('stream', (remoteStream) => {
-                        setupDiv.style.display = 'none';
+                    call.answer();
+                    call.on('stream', (s) => {
+                        document.getElementById('setup').style.display = 'none';
                         remoteVideo.style.display = 'block';
-                        remoteVideo.srcObject = remoteStream;
+                        remoteVideo.srcObject = s;
                     });
                 });
             } else {
-                // РЕЖИМ СТРИМЕРА (ТЫ)
-                new QRCode(qrcodeContainer, {
-                    text: fullJoinUrl,
-                    width: 200,
-                    height: 200,
-                    correctLevel: QRCode.CorrectLevel.H
-                });
-
-                status.innerText = "Ноутбук готов к вещанию";
-                linkText.innerText = fullJoinUrl;
-                urlContainer.style.display = 'block';
+                // НОУТБУК (СТРИМЕР)
+                new QRCode(qrcodeContainer, fullUrl);
+                status.innerHTML = `Ссылка для друзей:<br><small>${fullUrl}</small>`;
                 startBtn.style.display = 'inline-block';
 
                 startBtn.onclick = async () => {
-                    try {
-                        localStream = await navigator.mediaDevices.getDisplayMedia({ 
-                            video: true,
-                            audio: { echoCancellation: true, noiseSuppression: true }
-                        });
-                        status.innerText = "Трансляция активна! Ждем зрителей...";
-                        startBtn.innerText = "Трансляция идет";
-                        startBtn.style.background = "#333";
-                        startBtn.style.color = "#888";
-                    } catch (err) {
-                        alert("Ошибка захвата: " + err.name);
-                    }
+                    myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                    status.innerText = "В ЭФИРЕ";
+                    startBtn.style.background = "#ff0000";
+                    startBtn.innerText = "LIVE";
                 };
 
                 peer.on('connection', (conn) => {
-                    if (localStream) {
-                        status.innerText = "Зритель подключился!";
-                        setTimeout(() => {
-                            peer.call(conn.peer, localStream);
-                        }, 1000);
-                    }
+                    connections.push(conn);
+                    viewerDisplay.style.display = 'block';
+                    viewerDisplay.innerText = `Зрителей: ${connections.length}`;
+                    
+                    if(myStream) peer.call(conn.peer, myStream);
+
+                    conn.on('data', (data) => {
+                        addMessage(data, "Зритель");
+                        // Пересылаем сообщение всем остальным (если много людей)
+                        connections.forEach(c => { if(c !== conn) c.send(data); });
+                    });
                 });
             }
         });
