@@ -2,74 +2,119 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirUSB Live - Streaming Service</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AirUSB Live</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary: #00ff88; --bg: #0a0a0a; --panel: #161616; }
-        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
-        #main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; background: #000; }
-        
+        * { box-sizing: border-box; }
+
+        body { 
+            margin: 0; 
+            background: var(--bg); 
+            color: #fff; 
+            font-family: system-ui, -apple-system, sans-serif; 
+            height: 100vh; 
+            height: 100dvh; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+
+        #app-container { display: flex; flex: 1; position: relative; overflow: hidden; }
+
+        #main { 
+            flex: 1; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative; 
+            background: #000; 
+        }
+
         video { width: 100%; height: 100%; object-fit: contain; display: none; }
 
-        /* Чат и боковая панель */
+        /* ЧАТ */
         #chat-side { 
             width: 320px; 
             background: var(--panel); 
             border-left: 1px solid #333; 
             display: flex; 
             flex-direction: column; 
-            transition: transform 0.3s ease; 
-            z-index: 100;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
         }
 
-        /* Кнопка чата для мобилок */
+        #messages { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .msg { padding: 10px 14px; background: #222; border-radius: 15px; font-size: 0.9em; max-width: 85%; word-wrap: break-word; }
+        .msg.me { align-self: flex-end; background: #004d33; border-bottom-right-radius: 2px; }
+        .msg.host { border-left: 3px solid var(--primary); background: #1a2a1a; }
+        .msg.system { align-self: center; background: transparent; color: #777; font-size: 0.75em; border: none; }
+
+        /* ПОЛЕ ВВОДА — ПОДНЯТО ВЫШЕ (КАК В WHATSAPP) */
+        #chat-input { 
+            padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 30px) 12px; 
+            background: #1a1a1a; 
+            border-top: 1px solid #333; 
+            display: flex; 
+            gap: 8px; 
+        }
+
+        input { 
+            flex: 1; 
+            background: #222; 
+            border: 1px solid #444; 
+            color: #fff; 
+            padding: 12px 18px; 
+            border-radius: 25px; 
+            outline: none; 
+            font-size: 16px; /* Запрещает авто-зум в Safari */
+        }
+
+        /* Кнопка чата */
         #toggle-chat {
             position: absolute;
-            bottom: 20px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
             right: 20px;
-            z-index: 1000;
-            width: 50px;
-            height: 50px;
+            z-index: 1500;
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
-            display: none; /* Скрыта на ПК */
-            justify-content: center;
-            align-items: center;
+            background: var(--primary);
+            color: #000;
+            border: none;
+            display: none;
             font-size: 24px;
+            cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        /* Адаптивность для телефонов */
         @media (max-width: 768px) {
+            #toggle-chat { display: flex; align-items: center; justify-content: center; }
             #chat-side {
-                position: absolute;
-                right: 0;
-                top: 0;
-                bottom: 0;
-                width: 80%;
+                position: fixed;
+                inset: 0;
+                width: 100%;
                 transform: translateX(100%);
-                box-shadow: -5px 0 15px rgba(0,0,0,0.5);
             }
             #chat-side.active { transform: translateX(0); }
-            #toggle-chat { display: flex; }
         }
-
-        #messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { padding: 10px 14px; background: #222; border-radius: 15px; font-size: 0.9em; max-width: 85%; word-wrap: break-word; }
-        .msg.me { align-self: flex-end; background: #004d33; border-bottom-right-radius: 2px; }
-        .msg.system { align-self: center; background: transparent; color: #777; font-size: 0.75em; border: none; }
-        .msg.host { border-left: 3px solid var(--primary); background: #1a2a1a; }
-
-        #chat-input { padding: 15px; background: var(--panel); border-top: 1px solid #333; display: flex; gap: 8px; }
-        input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 25px; outline: none; }
 
         .btn { background: var(--primary); color: #000; border: none; padding: 12px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; }
         
         #setup { text-align: center; padding: 25px; background: var(--panel); border-radius: 20px; width: 85%; max-width: 350px; z-index: 10; }
-        #qrcode { background: white; padding: 10px; border-radius: 10px; margin: 15px 0; }
+        #qrcode { background: white; padding: 10px; border-radius: 10px; margin: 15px 0; display: inline-block; }
         #viewer-count { position: absolute; top: 20px; left: 20px; background: rgba(255,0,0,0.8); padding: 5px 12px; border-radius: 20px; font-size: 0.8em; z-index: 50; display:none; }
         
         #end-screen { 
@@ -83,11 +128,11 @@
 
     <div id="end-screen">
         <h1 style="color: var(--primary)">Трансляция завершена</h1>
-        <p>Ведущий отключился или закончил эфир</p>
+        <p>Ведущий отключился</p>
         <button class="btn" onclick="location.href=location.origin + location.pathname">На главную</button>
     </div>
 
-    <button id="toggle-chat" class="btn">💬</button>
+    <button id="toggle-chat">💬</button>
 
     <div id="app-container">
         <div id="main">
@@ -96,7 +141,7 @@
             <div id="setup">
                 <h2>AirUSB <span style="color:var(--primary)">Live</span></h2>
                 <div id="user-init">
-                    <input type="text" id="nickInput" placeholder="Ваш ник...">
+                    <input type="text" id="nickInput" placeholder="Ваш ник..." style="width:100%">
                     <button id="joinService" class="btn" style="width:100%; margin-top:10px">Войти</button>
                 </div>
                 
@@ -107,7 +152,7 @@
                 </div>
 
                 <div id="viewer-controls" style="display:none;">
-                    <p id="status-text">Ожидание трансляции...</p>
+                    <p id="status-text">Ожидание эфира...</p>
                 </div>
             </div>
 
@@ -115,7 +160,7 @@
         </div>
 
         <div id="chat-side">
-            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.8em; display:flex; justify-content: space-between;">
+            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.8em; display:flex; justify-content: space-between; background: var(--panel);">
                 <span>ЧАТ</span>
                 <span id="myNameDisplay" style="color:var(--primary)"></span>
             </div>
@@ -134,23 +179,26 @@
         let myNickname = "";
         const isHostMode = !new URLSearchParams(window.location.search).get('join');
 
-        // Переключение чата на мобилках
+        // Переключатель чата
         const chatSide = document.getElementById('chat-side');
-        document.getElementById('toggle-chat').onclick = () => {
+        const toggleBtn = document.getElementById('toggle-chat');
+        toggleBtn.onclick = () => {
             chatSide.classList.toggle('active');
+            toggleBtn.innerText = chatSide.classList.contains('active') ? '✕' : '💬';
         };
 
         function showEndScreen() {
             document.getElementById('end-screen').style.display = 'flex';
-            if (myStream) myStream.getTracks().forEach(track => track.stop());
+            if (myStream) myStream.getTracks().forEach(t => t.stop());
         }
 
         function addMessage(text, sender, type = '') {
             const div = document.createElement('div');
             div.className = `msg ${type}`;
             div.innerHTML = `<b style="display:block;color:var(--primary);font-size:0.75em">${sender}</b>${text}`;
-            messages.appendChild(div);
-            messages.scrollTop = messages.scrollHeight;
+            const msgBox = document.getElementById('messages');
+            msgBox.appendChild(div);
+            msgBox.scrollTop = msgBox.scrollHeight;
         }
 
         peer.on('open', (id) => {
@@ -166,18 +214,16 @@
             const joinId = new URLSearchParams(window.location.search).get('join');
 
             if (joinId) {
-                let conn = peer.connect(joinId);
-                setupConnection(conn);
+                setupConnection(peer.connect(joinId));
                 document.getElementById('viewer-controls').style.display = 'block';
             } else {
                 document.getElementById('host-controls').style.display = 'block';
-                const fullUrl = window.location.origin + window.location.pathname + '?join=' + myId;
-                new QRCode(document.getElementById("qrcode"), { text: fullUrl, width: 128, height: 128 });
-                
+                const url = window.location.origin + window.location.pathname + '?join=' + myId;
+                new QRCode(document.getElementById("qrcode"), { text: url, width: 128, height: 128 });
                 document.getElementById('startStream').onclick = startCapture;
                 document.getElementById('shareBtn').onclick = () => {
-                    if (navigator.share) navigator.share({ url: fullUrl });
-                    else alert("Ссылка: " + fullUrl);
+                    if (navigator.share) navigator.share({ url });
+                    else { navigator.clipboard.writeText(url); alert("Ссылка скопирована!"); }
                 };
             }
         }
@@ -189,10 +235,9 @@
                 document.getElementById('remoteVideo').style.display = 'block';
                 document.getElementById('remoteVideo').srcObject = myStream;
                 document.getElementById('viewer-count').style.display = 'block';
-
                 myStream.getVideoTracks()[0].onended = () => endSession();
                 connections.forEach(c => peer.call(c.peer, myStream));
-            } catch (e) { alert("Ошибка доступа к экрану"); }
+            } catch (e) { alert("Ошибка доступа"); }
         }
 
         function endSession() {
@@ -200,26 +245,21 @@
             setTimeout(() => location.reload(), 500);
         }
 
-        // Сообщаем всем перед закрытием вкладки
-        window.onbeforeunload = () => {
-            if (isHostMode) endSession();
-        };
+        window.onbeforeunload = () => { if (isHostMode) endSession(); };
 
         function setupConnection(conn) {
             conn.on('open', () => {
                 connections.push(conn);
-                addMessage("Подключено к эфиру", "Система", "system");
+                addMessage("Подключено", "Система", "system");
                 
-                // Обработка отправки сообщений
                 document.getElementById('sendBtn').onclick = () => {
                     const val = document.getElementById('msgText').value;
                     if(!val) return;
                     const name = isHostMode ? myNickname + " (Ведущий)" : myNickname;
-                    const msgData = { type: 'chat', text: val, user: name };
-                    
-                    conn.send(msgData);
+                    const data = { type: 'chat', text: val, user: name };
+                    conn.send(data);
                     addMessage(val, "Вы", isHostMode ? "me host" : "me");
-                    if (isHostMode) connections.forEach(c => { if(c !== conn) c.send(msgData); });
+                    if (isHostMode) connections.forEach(c => { if(c !== conn) c.send(data); });
                     document.getElementById('msgText').value = "";
                 };
             });
@@ -232,16 +272,13 @@
                 if (data.type === 'system_cmd' && data.action === 'end') showEndScreen();
             });
 
-            // Если соединение разорвано (ведущий закрыл вкладку)
-            conn.on('close', () => {
-                if (!isHostMode) showEndScreen();
-            });
+            conn.on('close', () => { if (!isHostMode) showEndScreen(); });
         }
 
         peer.on('connection', (conn) => {
             setupConnection(conn);
             document.getElementById('viewer-count').style.display = 'block';
-            document.getElementById('viewer-count').innerText = `LIVE: ${connections.length + 1}`;
+            document.getElementById('viewer-count').innerText = `LIVE: ${connections.length}`;
             if (myStream) setTimeout(() => peer.call(conn.peer, myStream), 1000);
         });
 
@@ -249,9 +286,8 @@
             call.answer();
             call.on('stream', (s) => {
                 document.getElementById('setup').style.display = 'none';
-                const v = document.getElementById('remoteVideo');
-                v.style.display = 'block';
-                v.srcObject = s;
+                document.getElementById('remoteVideo').style.display = 'block';
+                document.getElementById('remoteVideo').srcObject = s;
             });
         });
 
