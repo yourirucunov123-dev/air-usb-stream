@@ -3,211 +3,234 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirUSB Live - Pro Edition</title>
+    <title>AirUSB Live - Streaming Service</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
-        #main { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
-        video { width: 100%; height: 100%; object-fit: contain; display: none; }
-
-        /* ЧАТ */
-        #chat-side { width: 350px; background: #111; border-left: 1px solid #333; display: flex; flex-direction: column; z-index: 100; transition: 0.3s; }
-        @media (max-width: 768px) {
-            @media (orientation: portrait) {
-                #app-container { flex-direction: column; }
-                #chat-side { width: 100%; height: 35vh; border-left: none; border-top: 1px solid #333; }
-                #toggleChat { display: none !important; }
-            }
-            @media (orientation: landscape) {
-                #chat-side { position: absolute; right: 0; top: 0; bottom: 0; width: 280px; background: rgba(0,0,0,0.8); transform: translateX(100%); backdrop-filter: blur(10px); }
-                #chat-side.open { transform: translateX(0); }
-                #toggleChat { display: block !important; }
-            }
-        }
-
-        #messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-        .msg { padding: 8px 12px; background: #222; border-radius: 12px; font-size: 0.9em; max-width: 85%; line-height: 1.4; }
-        .msg.me { align-self: flex-end; background: #004d33; border-bottom-right-radius: 2px; }
-        .msg.host { border-left: 3px solid #ff0055; background: #2a1010; }
-
-        #chat-input { padding: 10px; background: #000; display: flex; gap: 8px; }
-        input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 20px; outline: none; }
+        :root { --primary: #00ff88; --bg: #0a0a0a; --panel: #161616; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        .btn { background: #00ff88; color: #000; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn:active { transform: scale(0.95); }
-        .btn-share { background: #0088ff; color: #fff; margin-top: 10px; }
+        #app-container { display: flex; flex: 1; overflow: hidden; }
+        #main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); }
+        
+        video { width: 100%; height: 100%; object-fit: contain; display: none; background: #000; }
 
-        #toggleChat { position: absolute; bottom: 20px; right: 20px; z-index: 200; display: none; background: rgba(0,255,136,0.5); }
-        #setup { text-align: center; padding: 20px; z-index: 10; width: 100%; max-width: 400px; }
-        #qrcode { background: white; padding: 10px; border-radius: 10px; display: inline-block; margin: 10px 0; }
-        #viewer-count { position: absolute; top: 10px; left: 10px; background: rgba(255,0,0,0.8); padding: 4px 10px; border-radius: 10px; font-size: 0.7em; z-index: 50; }
+        /* Чат и боковая панель */
+        #chat-side { width: 320px; background: var(--panel); border-left: 1px solid #333; display: flex; flex-direction: column; transition: 0.3s; }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+        .msg { padding: 10px 14px; background: #222; border-radius: 15px; font-size: 0.9em; max-width: 85%; word-wrap: break-word; animation: fadeIn 0.2s ease; }
+        .msg.me { align-self: flex-end; background: #004d33; border-bottom-right-radius: 2px; }
+        .msg.system { align-self: center; background: transparent; color: #777; font-size: 0.75em; border: none; }
+        .msg.host { border-left: 3px solid var(--primary); background: #1a2a1a; }
+
+        #chat-input { padding: 15px; background: var(--panel); border-top: 1px solid #333; display: flex; gap: 8px; }
+        input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 25px; outline: none; }
+        input:focus { border-color: var(--primary); }
+
+        /* Кнопки */
+        .btn { background: var(--primary); color: #000; border: none; padding: 12px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn:hover { opacity: 0.8; transform: translateY(-1px); }
+        .btn-share { background: #0088ff; color: #fff; }
+
+        /* Модальные окна и настройки */
+        #setup { text-align: center; padding: 30px; background: var(--panel); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 90%; max-width: 350px; }
+        #qrcode { background: white; padding: 10px; border-radius: 10px; display: inline-block; margin: 15px 0; }
+        #viewer-count { position: absolute; top: 20px; left: 20px; background: rgba(255,0,0,0.8); padding: 5px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; z-index: 50; display:none; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Состояние "Завершено" */
+        #end-screen { position: absolute; inset: 0; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
     </style>
 </head>
 <body>
 
+    <div id="end-screen">
+        <h1 style="color: var(--primary)">Трансляция завершена</h1>
+        <p>Ведущий отключился или закончил эфир</p>
+        <button class="btn" onclick="location.href=location.origin + location.pathname">На главную</button>
+    </div>
+
     <div id="app-container">
         <div id="main">
-            <div id="viewer-count" style="display:none;">LIVE: 0</div>
-            <button id="toggleChat" class="btn">Чат</button>
+            <div id="viewer-count">LIVE: 0</div>
             
             <div id="setup">
-                <h1>AirUSB <span style="color:#00ff88">Live</span></h1>
-                <p id="status">Загрузка...</p>
-                <div id="qrcode"></div>
-                <br>
-                <button id="startStream" class="btn" style="display:none;">Начать трансляцию</button>
-                <button id="mobileStart" class="btn" style="display:none;">Смотреть</button>
-                <br>
-                <button id="shareBtn" class="btn btn-share" style="display:none;">Поделиться ссылкой</button>
+                <h2 id="setup-title">AirUSB <span style="color:var(--primary)">Live</span></h2>
+                <div id="user-init">
+                    <input type="text" id="nickInput" placeholder="Ваш ник..." style="margin-bottom:10px; width:80%">
+                    <button id="joinService" class="btn">Войти</button>
+                </div>
+                
+                <div id="host-controls" style="display:none;">
+                    <div id="qrcode"></div>
+                    <p style="font-size: 0.8em; color: #aaa;">Сканируйте QR, чтобы пригласить зрителей</p>
+                    <button id="startStream" class="btn">Начать трансляцию</button>
+                    <button id="shareBtn" class="btn btn-share">Поделиться</button>
+                </div>
+
+                <div id="viewer-controls" style="display:none;">
+                    <p>Вы зашли как зритель</p>
+                    <p id="status-text">Ожидание начала эфира...</p>
+                </div>
             </div>
 
             <video id="remoteVideo" autoplay playsinline controls></video>
         </div>
 
         <div id="chat-side">
-            <div style="padding: 10px; border-bottom: 1px solid #333; font-size: 0.8em; color: #888; display:flex; justify-content: space-between;">
+            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.8em; color: #888; display:flex; justify-content: space-between;">
                 <span>ЧАТ</span>
-                <span id="myNameDisplay" style="color:#00ff88"></span>
+                <span id="myNameDisplay" style="color:var(--primary)"></span>
             </div>
             <div id="messages"></div>
             <div id="chat-input">
-                <input type="text" id="msgText" placeholder="Текст...">
+                <input type="text" id="msgText" placeholder="Сообщение...">
                 <button class="btn" id="sendBtn">></button>
             </div>
         </div>
     </div>
 
     <script>
-        const status = document.getElementById('status');
-        const qrcodeContainer = document.getElementById('qrcode');
-        const startBtn = document.getElementById('startStream');
-        const mobileStartBtn = document.getElementById('mobileStart');
-        const shareBtn = document.getElementById('shareBtn');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const msgText = document.getElementById('msgText');
-        const sendBtn = document.getElementById('sendBtn');
-        const messages = document.getElementById('messages');
-        const viewerDisplay = document.getElementById('viewer-count');
-        const toggleChat = document.getElementById('toggleChat');
-        const chatSide = document.getElementById('chat-side');
-        const myNameDisplay = document.getElementById('myNameDisplay');
-
         const peer = new Peer();
         let connections = [];
         let myStream = null;
-        let myNickname = "Аноним";
+        let myNickname = "";
+        let isHost = !new URLSearchParams(window.location.search).get('join');
+
+        // Элементы
+        const setupDiv = document.getElementById('setup');
+        const userInit = document.getElementById('user-init');
+        const hostControls = document.getElementById('host-controls');
+        const viewerControls = document.getElementById('viewer-controls');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const messages = document.getElementById('messages');
+        const viewerDisplay = document.getElementById('viewer-count');
 
         function addMessage(text, sender, type = '') {
             const div = document.createElement('div');
             div.className = `msg ${type}`;
-            div.innerHTML = `<b style="display:block;color:#00ff88;font-size:0.75em">${sender}</b>${text}`;
+            div.innerHTML = `<b style="display:block;color:var(--primary);font-size:0.75em">${sender}</b>${text}`;
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
         }
 
-        // Функция "Поделиться"
-        async function shareLink(url) {
-            if (navigator.share) {
-                try {
-                    await navigator.share({ title: 'AirUSB Live', text: 'Заходи на мою трансляцию!', url: url });
-                } catch (err) { console.log("Отмена шаринга"); }
+        peer.on('open', (id) => {
+            document.getElementById('joinService').onclick = () => {
+                myNickname = document.getElementById('nickInput').value || "Аноним_" + id.slice(0,4);
+                initSession(id);
+            };
+        });
+
+        function initSession(myId) {
+            userInit.style.display = 'none';
+            document.getElementById('myNameDisplay').innerText = myNickname;
+            const joinId = new URLSearchParams(window.location.search).get('join');
+
+            if (joinId) {
+                // ЛОГИКА ЗРИТЕЛЯ
+                isHost = false;
+                viewerControls.style.display = 'block';
+                let conn = peer.connect(joinId);
+                setupConnection(conn);
             } else {
-                navigator.clipboard.writeText(url);
-                alert("Ссылка скопирована в буфер обмена!");
+                // ЛОГИКА ВЕДУЩЕГО
+                isHost = true;
+                hostControls.style.display = 'block';
+                const fullUrl = window.location.origin + window.location.pathname + '?join=' + myId;
+                new QRCode(document.getElementById("qrcode"), { text: fullUrl, width: 128, height: 128 });
+                
+                document.getElementById('shareBtn').onclick = () => {
+                    if (navigator.share) navigator.share({ url: fullUrl });
+                    else alert("Ссылка скопирована!");
+                };
+
+                document.getElementById('startStream').onclick = startCapture;
             }
         }
 
-        toggleChat.onclick = () => chatSide.classList.toggle('open');
-
-        peer.on('open', (id) => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const joinId = urlParams.get('join');
-            const fullUrl = window.location.origin + window.location.pathname + '?join=' + id;
-
-            myNickname = prompt("Введите ваш ник:", "") || "Аноним " + Math.floor(Math.random()*100);
-            myNameDisplay.innerText = myNickname;
-
-            if (joinId) {
-                // ЗРИТЕЛЬ
-                qrcodeContainer.style.display = 'none';
-                mobileStartBtn.style.display = 'inline-block';
-                status.innerText = "Комната найдена";
+        async function startCapture() {
+            try {
+                myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                setupDiv.style.display = 'none';
+                viewerDisplay.style.display = 'block';
                 
-                let conn = peer.connect(joinId);
-                connections = [conn];
+                // Если ведущий сам прекратил доступ к экрану кнопкой браузера
+                myStream.getVideoTracks()[0].onended = () => endSession();
 
-                conn.on('open', () => {
-                    sendBtn.onclick = () => {
-                        if(msgText.value) {
-                            conn.send({ type: 'chat', text: msgText.value, user: myNickname });
-                            addMessage(msgText.value, "Вы", "me");
-                            msgText.value = "";
-                        }
+                // Позвонить всем, кто уже подключен
+                connections.forEach(c => peer.call(c.peer, myStream));
+            } catch (e) { alert("Доступ к экрану отклонен"); }
+        }
+
+        function endSession() {
+            connections.forEach(c => c.send({ type: 'system_cmd', action: 'end' }));
+            setTimeout(() => location.reload(), 500);
+        }
+
+        function setupConnection(conn) {
+            conn.on('open', () => {
+                connections.push(conn);
+                addMessage("Подключено к комнате", "Система", "system");
+                
+                if(!isHost) {
+                    document.getElementById('sendBtn').onclick = () => {
+                        const val = document.getElementById('msgText').value;
+                        if(!val) return;
+                        conn.send({ type: 'chat', text: val, user: myNickname });
+                        addMessage(val, "Вы", "me");
+                        document.getElementById('msgText').value = "";
                     };
-                });
+                }
+            });
 
-                conn.on('data', (data) => {
-                    if(data.type === 'chat') addMessage(data.text, data.user, data.user.includes('Ведущий') ? 'host' : '');
-                });
+            conn.on('data', (data) => {
+                if (data.type === 'chat') {
+                    addMessage(data.text, data.user, data.user.includes('(Ведущий)') ? 'host' : '');
+                    // Если мы хост, пересылаем сообщение всем остальным (Broadcast)
+                    if (isHost) connections.forEach(c => { if(c !== conn) c.send(data); });
+                }
+                if (data.type === 'system_cmd' && data.action === 'end') {
+                    document.getElementById('end-screen').style.display = 'flex';
+                }
+            });
+        }
 
-                peer.on('call', (call) => {
-                    call.answer();
-                    call.on('stream', (s) => {
-                        document.getElementById('setup').style.display = 'none';
-                        remoteVideo.style.display = 'block';
-                        remoteVideo.srcObject = s;
-                    });
-                });
-            } else {
-                // ВЕДУЩИЙ
-                myNickname += " (Ведущий)";
-                myNameDisplay.innerText = myNickname;
-                new QRCode(qrcodeContainer, fullUrl);
-                status.innerHTML = `Готов к эфиру`;
-                startBtn.style.display = 'inline-block';
-                shareBtn.style.display = 'inline-block';
-
-                shareBtn.onclick = () => shareLink(fullUrl);
-
-                startBtn.onclick = async () => {
-                    try {
-                        myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                        status.innerText = "В ЭФИРЕ";
-                        startBtn.style.display = 'none';
-                        viewerDisplay.style.display = 'block';
-                    } catch(e) { alert("Ошибка доступа!"); }
-                };
-
-                sendBtn.onclick = () => {
-                    if(msgText.value) {
-                        const val = msgText.value;
-                        addMessage(val, "Вы", "me host");
-                        connections.forEach(c => c.send({ type: 'chat', text: val, user: myNickname }));
-                        msgText.value = "";
-                    }
-                };
-
-                peer.on('connection', (conn) => {
-                    connections.push(conn);
-                    viewerDisplay.innerText = `LIVE: ${connections.length}`;
-                    if(myStream) peer.call(conn.peer, myStream);
-                    conn.on('data', (data) => {
-                        if(data.type === 'chat') {
-                            addMessage(data.text, data.user);
-                            connections.forEach(c => { if(c !== conn) c.send(data); });
-                        }
-                    });
-                    conn.on('close', () => {
-                        connections = connections.filter(c => c !== conn);
-                        viewerDisplay.innerText = `LIVE: ${connections.length}`;
-                    });
-                });
+        // Слушатель входящих подключений (для Хоста)
+        peer.on('connection', (conn) => {
+            setupConnection(conn);
+            viewerDisplay.style.display = 'block';
+            viewerDisplay.innerText = `LIVE: ${connections.length + 1}`;
+            
+            if (myStream) {
+                setTimeout(() => peer.call(conn.peer, myStream), 1000);
             }
         });
 
-        msgText.onkeypress = (e) => { if(e.key === 'Enter') sendBtn.click(); };
+        // Слушатель звонка (для Зрителя)
+        peer.on('call', (call) => {
+            call.answer();
+            call.on('stream', (s) => {
+                setupDiv.style.display = 'none';
+                remoteVideo.style.display = 'block';
+                remoteVideo.srcObject = s;
+            });
+        });
+
+        // Обработка Enter
+        document.getElementById('msgText').onkeypress = (e) => { if(e.key === 'Enter') document.getElementById('sendBtn').click(); };
+        
+        // Ведущий рассылает свои сообщения
+        if (isHost) {
+            document.getElementById('sendBtn').onclick = () => {
+                const val = document.getElementById('msgText').value;
+                if(!val) return;
+                const name = myNickname + " (Ведущий)";
+                addMessage(val, "Вы", "me host");
+                connections.forEach(c => c.send({ type: 'chat', text: val, user: name }));
+                document.getElementById('msgText').value = "";
+            };
+        }
     </script>
 </body>
 </html>
