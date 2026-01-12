@@ -62,9 +62,9 @@
         .msg.host { border-left: 3px solid var(--primary); background: #1a2a1a; }
         .msg.system { align-self: center; background: transparent; color: #777; font-size: 0.75em; border: none; }
 
-        /* ПОЛЕ ВВОДА — ПОДНЯТО ВЫШЕ (КАК В WHATSAPP) */
+        /* ПОЛЕ ВВОДА */
         #chat-input { 
-            padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 30px) 12px; 
+            padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 35px) 12px; 
             background: #1a1a1a; 
             border-top: 1px solid #333; 
             display: flex; 
@@ -79,15 +79,15 @@
             padding: 12px 18px; 
             border-radius: 25px; 
             outline: none; 
-            font-size: 16px; /* Запрещает авто-зум в Safari */
+            font-size: 16px; 
         }
 
-        /* Кнопка чата */
+        /* Кнопка чата - мобильная */
         #toggle-chat {
             position: absolute;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); /* Поднята выше ввода */
             right: 20px;
-            z-index: 1500;
+            z-index: 2000;
             width: 56px;
             height: 56px;
             border-radius: 50%;
@@ -98,6 +98,19 @@
             font-size: 24px;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+        /* Стиль кнопки, когда чат ОТКРЫТ (переезжает наверх) */
+        #toggle-chat.active {
+            bottom: auto;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            font-size: 18px;
+            background: #333;
+            color: #fff;
         }
 
         @media (max-width: 768px) {
@@ -160,9 +173,9 @@
         </div>
 
         <div id="chat-side">
-            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.8em; display:flex; justify-content: space-between; background: var(--panel);">
+            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.8em; display:flex; justify-content: space-between; align-items: center; background: var(--panel);">
                 <span>ЧАТ</span>
-                <span id="myNameDisplay" style="color:var(--primary)"></span>
+                <span id="myNameDisplay" style="color:var(--primary); margin-right: 40px;"></span>
             </div>
             <div id="messages"></div>
             <div id="chat-input">
@@ -182,9 +195,15 @@
         // Переключатель чата
         const chatSide = document.getElementById('chat-side');
         const toggleBtn = document.getElementById('toggle-chat');
+        
         toggleBtn.onclick = () => {
-            chatSide.classList.toggle('active');
-            toggleBtn.innerText = chatSide.classList.contains('active') ? '✕' : '💬';
+            const isOpen = chatSide.classList.toggle('active');
+            toggleBtn.classList.toggle('active', isOpen);
+            toggleBtn.innerText = isOpen ? '✕' : '💬';
+            
+            if(isOpen) {
+                setTimeout(() => document.getElementById('messages').scrollTop = 99999, 100);
+            }
         };
 
         function showEndScreen() {
