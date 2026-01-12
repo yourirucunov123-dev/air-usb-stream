@@ -2,116 +2,127 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AirUSB Live Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirUSB Live - Streaming Service</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        :root { --primary: #00ff88; --bg: #000; --panel: #121212; --text: #eee; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root { --primary: #00ff88; --bg: #0a0a0a; --panel: #161616; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        body { 
-            margin: 0; background: var(--bg); color: var(--text); 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
-            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+        #main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; background: #000; }
+        
+        video { width: 100%; height: 100%; object-fit: contain; display: none; }
+
+        /* Чат и боковая панель */
+        #chat-side { 
+            width: 320px; 
+            background: var(--panel); 
+            border-left: 1px solid #333; 
+            display: flex; 
+            flex-direction: column; 
+            transition: transform 0.3s ease; 
+            z-index: 100;
         }
 
-        /* Видео-зона (сверху на мобилках) */
-        #video-section { 
-            position: relative; width: 100%; aspect-ratio: 16/9; 
-            background: #000; display: flex; align-items: center; justify-content: center;
-            border-bottom: 1px solid #333;
-        }
-        video { width: 100%; height: 100%; object-fit: contain; }
-
-        /* Контейнер приложения */
-        #app-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-
-        /* Чат */
-        #chat-section { flex: 1; display: flex; flex-direction: column; background: var(--panel); }
-        #messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
-        .msg { 
-            padding: 10px 14px; background: #222; border-radius: 18px; font-size: 14px; 
-            max-width: 85%; align-self: flex-start; line-height: 1.4;
-        }
-        .msg.me { align-self: flex-end; background: #005c4b; border-bottom-right-radius: 4px; }
-        .msg.host { border-left: 3px solid var(--primary); background: #1a251e; }
-
-        #input-area { 
-            padding: 10px 15px 25px 15px; background: #1e1e1e; 
-            display: flex; gap: 10px; align-items: center;
-        }
-        input { 
-            flex: 1; background: #333; border: none; color: #fff; 
-            padding: 12px 18px; border-radius: 25px; font-size: 16px; outline: none;
+        /* Кнопка чата для мобилок */
+        #toggle-chat {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: none; /* Скрыта на ПК */
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
-        /* Кнопки */
-        .btn { 
-            background: var(--primary); color: #000; border: none; 
-            padding: 12px 20px; border-radius: 25px; font-weight: bold; font-size: 14px;
+        /* Адаптивность для телефонов */
+        @media (max-width: 768px) {
+            #chat-side {
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 80%;
+                transform: translateX(100%);
+                box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+            }
+            #chat-side.active { transform: translateX(0); }
+            #toggle-chat { display: flex; }
         }
-        .send-btn { width: 45px; height: 45px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 
-        /* Оверлеи */
-        #overlay { 
-            position: absolute; inset: 0; background: var(--bg); 
-            z-index: 100; display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; padding: 20px; text-align: center;
-        }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { padding: 10px 14px; background: #222; border-radius: 15px; font-size: 0.9em; max-width: 85%; word-wrap: break-word; }
+        .msg.me { align-self: flex-end; background: #004d33; border-bottom-right-radius: 2px; }
+        .msg.system { align-self: center; background: transparent; color: #777; font-size: 0.75em; border: none; }
+        .msg.host { border-left: 3px solid var(--primary); background: #1a2a1a; }
+
+        #chat-input { padding: 15px; background: var(--panel); border-top: 1px solid #333; display: flex; gap: 8px; }
+        input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 25px; outline: none; }
+
+        .btn { background: var(--primary); color: #000; border: none; padding: 12px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; }
+        
+        #setup { text-align: center; padding: 25px; background: var(--panel); border-radius: 20px; width: 85%; max-width: 350px; z-index: 10; }
+        #qrcode { background: white; padding: 10px; border-radius: 10px; margin: 15px 0; }
+        #viewer-count { position: absolute; top: 20px; left: 20px; background: rgba(255,0,0,0.8); padding: 5px 12px; border-radius: 20px; font-size: 0.8em; z-index: 50; display:none; }
+        
         #end-screen { 
-            position: fixed; inset: 0; background: #000; z-index: 999; 
-            display: none; flex-direction: column; align-items: center; justify-content: center; 
+            position: fixed; inset: 0; background: #000; 
+            display: none; flex-direction: column; align-items: center; 
+            justify-content: center; z-index: 9999; text-align: center;
         }
-
-        .status-badge { 
-            position: absolute; top: 10px; left: 10px; background: rgba(255,0,0,0.8);
-            padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: bold;
-        }
-        
-        #qrcode-box { background: white; padding: 10px; border-radius: 12px; margin: 15px 0; }
     </style>
 </head>
 <body>
 
     <div id="end-screen">
-        <h2 style="color:var(--primary)">Эфир завершен</h2>
-        <p>Ведущий покинул трансляцию</p>
-        <button class="btn" onclick="location.href=location.origin+location.pathname" style="margin-top:20px">На главную</button>
+        <h1 style="color: var(--primary)">Трансляция завершена</h1>
+        <p>Ведущий отключился или закончил эфир</p>
+        <button class="btn" onclick="location.href=location.origin + location.pathname">На главную</button>
     </div>
 
-    <div id="video-section">
-        <div id="live-tag" class="status-badge" style="display:none;">LIVE</div>
-        <video id="remoteVideo" autoplay playsinline></video>
-        <div id="placeholder" style="color:#444; font-weight:bold;">AIRUSB LIVE</div>
-    </div>
+    <button id="toggle-chat" class="btn">💬</button>
 
-    <div id="app-content">
-        <div id="overlay">
-            <h2 id="title">AirUSB <span style="color:var(--primary)">Live</span></h2>
+    <div id="app-container">
+        <div id="main">
+            <div id="viewer-count">LIVE: 0</div>
             
-            <div id="nick-step">
-                <input type="text" id="nickInput" placeholder="Введите ваш ник">
-                <button id="nextBtn" class="btn" style="margin-top:15px; width:100%">Войти</button>
+            <div id="setup">
+                <h2>AirUSB <span style="color:var(--primary)">Live</span></h2>
+                <div id="user-init">
+                    <input type="text" id="nickInput" placeholder="Ваш ник...">
+                    <button id="joinService" class="btn" style="width:100%; margin-top:10px">Войти</button>
+                </div>
+                
+                <div id="host-controls" style="display:none;">
+                    <div id="qrcode"></div>
+                    <button id="startStream" class="btn" style="width:100%">Начать трансляцию</button>
+                    <button id="shareBtn" class="btn" style="width:100%; margin-top:10px; background:#0088ff; color:#fff">Поделиться</button>
+                </div>
+
+                <div id="viewer-controls" style="display:none;">
+                    <p id="status-text">Ожидание трансляции...</p>
+                </div>
             </div>
 
-            <div id="host-step" style="display:none;">
-                <div id="qrcode-box"></div>
-                <button id="startBtn" class="btn" style="width:100%">Начать трансляцию</button>
-                <button id="shareBtn" class="btn" style="margin-top:10px; width:100%; background:#222; color:#fff;">Поделиться ссылкой</button>
-            </div>
-
-            <div id="viewer-step" style="display:none;">
-                <p>Вы подключены как зритель</p>
-                <p style="color:var(--primary); font-size:12px">Ожидайте запуска потока...</p>
-            </div>
+            <video id="remoteVideo" autoplay playsinline controls></video>
         </div>
 
-        <div id="chat-section">
+        <div id="chat-side">
+            <div style="padding: 15px; border-bottom: 1px solid #333; font-size: 0.8em; display:flex; justify-content: space-between;">
+                <span>ЧАТ</span>
+                <span id="myNameDisplay" style="color:var(--primary)"></span>
+            </div>
             <div id="messages"></div>
-            <div id="input-area">
-                <input type="text" id="msgInput" placeholder="Сообщение...">
-                <button id="sendBtn" class="btn send-btn">></button>
+            <div id="chat-input">
+                <input type="text" id="msgText" placeholder="Сообщение...">
+                <button class="btn" id="sendBtn">></button>
             </div>
         </div>
     </div>
@@ -120,121 +131,131 @@
         const peer = new Peer();
         let connections = [];
         let myStream = null;
-        let nick = "";
-        const isViewer = !!new URLSearchParams(window.location.search).get('join');
+        let myNickname = "";
+        const isHostMode = !new URLSearchParams(window.location.search).get('join');
 
-        // Элементы управления
-        const overlay = document.getElementById('overlay');
-        const endScreen = document.getElementById('end-screen');
-        const video = document.getElementById('remoteVideo');
+        // Переключение чата на мобилках
+        const chatSide = document.getElementById('chat-side');
+        document.getElementById('toggle-chat').onclick = () => {
+            chatSide.classList.toggle('active');
+        };
+
+        function showEndScreen() {
+            document.getElementById('end-screen').style.display = 'flex';
+            if (myStream) myStream.getTracks().forEach(track => track.stop());
+        }
+
+        function addMessage(text, sender, type = '') {
+            const div = document.createElement('div');
+            div.className = `msg ${type}`;
+            div.innerHTML = `<b style="display:block;color:var(--primary);font-size:0.75em">${sender}</b>${text}`;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
 
         peer.on('open', (id) => {
-            document.getElementById('nextBtn').onclick = () => {
-                nick = document.getElementById('nickInput').value || "User_" + id.slice(0,3);
-                showStep(id);
+            document.getElementById('joinService').onclick = () => {
+                myNickname = document.getElementById('nickInput').value || "Гость";
+                initSession(id);
             };
         });
 
-        function showStep(myId) {
-            document.getElementById('nick-step').style.display = 'none';
-            if (isViewer) {
-                document.getElementById('viewer-step').style.display = 'block';
-                connectToHost(new URLSearchParams(window.location.search).get('join'));
+        function initSession(myId) {
+            document.getElementById('user-init').style.display = 'none';
+            document.getElementById('myNameDisplay').innerText = myNickname;
+            const joinId = new URLSearchParams(window.location.search).get('join');
+
+            if (joinId) {
+                let conn = peer.connect(joinId);
+                setupConnection(conn);
+                document.getElementById('viewer-controls').style.display = 'block';
             } else {
-                document.getElementById('host-step').style.display = 'block';
-                const url = window.location.origin + window.location.pathname + '?join=' + myId;
-                new QRCode(document.getElementById("qrcode-box"), { text: url, width: 150, height: 150 });
-                document.getElementById('shareBtn').onclick = () => navigator.share({ url });
-                document.getElementById('startBtn').onclick = startLive;
+                document.getElementById('host-controls').style.display = 'block';
+                const fullUrl = window.location.origin + window.location.pathname + '?join=' + myId;
+                new QRCode(document.getElementById("qrcode"), { text: fullUrl, width: 128, height: 128 });
+                
+                document.getElementById('startStream').onclick = startCapture;
+                document.getElementById('shareBtn').onclick = () => {
+                    if (navigator.share) navigator.share({ url: fullUrl });
+                    else alert("Ссылка: " + fullUrl);
+                };
             }
         }
 
-        async function startLive() {
+        async function startCapture() {
             try {
                 myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                overlay.style.display = 'none';
-                document.getElementById('live-tag').style.display = 'block';
-                document.getElementById('placeholder').style.display = 'none';
-                
-                // Передаем стрим всем, кто уже ждет
-                connections.forEach(conn => peer.call(conn.peer, myStream));
-                
-                // Следим за кнопкой "Остановить" в браузере
-                myStream.getVideoTracks()[0].onended = closeAll;
-            } catch (e) { alert("Ошибка доступа"); }
+                document.getElementById('setup').style.display = 'none';
+                document.getElementById('remoteVideo').style.display = 'block';
+                document.getElementById('remoteVideo').srcObject = myStream;
+                document.getElementById('viewer-count').style.display = 'block';
+
+                myStream.getVideoTracks()[0].onended = () => endSession();
+                connections.forEach(c => peer.call(c.peer, myStream));
+            } catch (e) { alert("Ошибка доступа к экрану"); }
         }
 
-        function connectToHost(hostId) {
-            const conn = peer.connect(hostId);
-            handleConn(conn);
+        function endSession() {
+            connections.forEach(c => c.send({ type: 'system_cmd', action: 'end' }));
+            setTimeout(() => location.reload(), 500);
         }
 
-        function handleConn(conn) {
+        // Сообщаем всем перед закрытием вкладки
+        window.onbeforeunload = () => {
+            if (isHostMode) endSession();
+        };
+
+        function setupConnection(conn) {
             conn.on('open', () => {
                 connections.push(conn);
-                addMsg("Система", "Вы присоединились к чату");
+                addMessage("Подключено к эфиру", "Система", "system");
+                
+                // Обработка отправки сообщений
+                document.getElementById('sendBtn').onclick = () => {
+                    const val = document.getElementById('msgText').value;
+                    if(!val) return;
+                    const name = isHostMode ? myNickname + " (Ведущий)" : myNickname;
+                    const msgData = { type: 'chat', text: val, user: name };
+                    
+                    conn.send(msgData);
+                    addMessage(val, "Вы", isHostMode ? "me host" : "me");
+                    if (isHostMode) connections.forEach(c => { if(c !== conn) c.send(msgData); });
+                    document.getElementById('msgText').value = "";
+                };
             });
 
             conn.on('data', (data) => {
-                if (data.type === 'chat') addMsg(data.user, data.text, data.isHost);
-                if (data.type === 'signal' && data.content === 'end') {
-                    showEnd();
+                if (data.type === 'chat') {
+                    addMessage(data.text, data.user, data.user.includes('(Ведущий)') ? 'host' : '');
+                    if (isHostMode) connections.forEach(c => { if(c !== conn) c.send(data); });
                 }
+                if (data.type === 'system_cmd' && data.action === 'end') showEndScreen();
             });
 
-            // Если хост пропал (закрыл вкладку)
-            conn.on('close', showEnd);
-            conn.on('error', showEnd);
+            // Если соединение разорвано (ведущий закрыл вкладку)
+            conn.on('close', () => {
+                if (!isHostMode) showEndScreen();
+            });
         }
 
-        // Входящие звонки (для зрителя)
+        peer.on('connection', (conn) => {
+            setupConnection(conn);
+            document.getElementById('viewer-count').style.display = 'block';
+            document.getElementById('viewer-count').innerText = `LIVE: ${connections.length + 1}`;
+            if (myStream) setTimeout(() => peer.call(conn.peer, myStream), 1000);
+        });
+
         peer.on('call', (call) => {
             call.answer();
             call.on('stream', (s) => {
-                overlay.style.display = 'none';
-                video.style.display = 'block';
-                video.srcObject = s;
-                document.getElementById('live-tag').style.display = 'block';
+                document.getElementById('setup').style.display = 'none';
+                const v = document.getElementById('remoteVideo');
+                v.style.display = 'block';
+                v.srcObject = s;
             });
         });
 
-        // Входящие сообщения (для хоста)
-        peer.on('connection', (conn) => {
-            handleConn(conn);
-            if (myStream) peer.call(conn.peer, myStream);
-        });
-
-        function addMsg(user, text, isHostMsg = false) {
-            const m = document.createElement('div');
-            m.className = `msg ${user === nick ? 'me' : ''} ${isHostMsg ? 'host' : ''}`;
-            m.innerHTML = `<small style="display:block; opacity:0.6; font-size:10px">${user}</small>${text}`;
-            const box = document.getElementById('messages');
-            box.appendChild(m);
-            box.scrollTop = box.scrollHeight;
-        }
-
-        function showEnd() {
-            endScreen.style.display = 'flex';
-        }
-
-        function closeAll() {
-            connections.forEach(c => c.send({ type: 'signal', content: 'end' }));
-            setTimeout(() => location.reload(), 300);
-        }
-
-        // Отправка сообщений
-        document.getElementById('sendBtn').onclick = () => {
-            const inp = document.getElementById('msgInput');
-            if (!inp.value) return;
-            addMsg(nick, inp.value);
-            connections.forEach(c => c.send({ type: 'chat', text: inp.value, user: nick, isHost: !isViewer }));
-            inp.value = "";
-        };
-
-        // Детекция закрытия вкладки
-        window.addEventListener('beforeunload', () => {
-            if (!isViewer) closeAll();
-        });
+        document.getElementById('msgText').onkeypress = (e) => { if(e.key === 'Enter') document.getElementById('sendBtn').click(); };
     </script>
 </body>
 </html>
