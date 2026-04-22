@@ -85,7 +85,7 @@
         /* Кнопка чата - мобильная */
         #toggle-chat {
             position: absolute;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); /* Поднята выше ввода */
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
             right: 20px;
             z-index: 2000;
             width: 56px;
@@ -101,7 +101,6 @@
             transition: all 0.3s ease;
         }
 
-        /* Стиль кнопки, когда чат ОТКРЫТ (переезжает наверх) */
         #toggle-chat.active {
             bottom: auto;
             top: 10px;
@@ -192,7 +191,6 @@
         let myNickname = "";
         const isHostMode = !new URLSearchParams(window.location.search).get('join');
 
-        // Переключатель чата
         const chatSide = document.getElementById('chat-side');
         const toggleBtn = document.getElementById('toggle-chat');
         
@@ -200,10 +198,7 @@
             const isOpen = chatSide.classList.toggle('active');
             toggleBtn.classList.toggle('active', isOpen);
             toggleBtn.innerText = isOpen ? '✕' : '💬';
-            
-            if(isOpen) {
-                setTimeout(() => document.getElementById('messages').scrollTop = 99999, 100);
-            }
+            if(isOpen) setTimeout(() => document.getElementById('messages').scrollTop = 99999, 100);
         };
 
         function showEndScreen() {
@@ -249,14 +244,28 @@
 
         async function startCapture() {
             try {
-                myStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                // Запрашиваем экран со звуком системы, отключая микрофонные функции
+                myStream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: true, 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100
+                    } 
+                });
+
                 document.getElementById('setup').style.display = 'none';
-                document.getElementById('remoteVideo').style.display = 'block';
-                document.getElementById('remoteVideo').srcObject = myStream;
+                const videoEl = document.getElementById('remoteVideo');
+                videoEl.style.display = 'block';
+                
+                // ВАЖНО: Выключаем звук у ВЕДУЩЕГО, чтобы не было эха
+                videoEl.muted = true; 
+                videoEl.srcObject = myStream;
+
                 document.getElementById('viewer-count').style.display = 'block';
                 myStream.getVideoTracks()[0].onended = () => endSession();
                 connections.forEach(c => peer.call(c.peer, myStream));
-            } catch (e) { alert("Ошибка доступа"); }
+            } catch (e) { alert("Ошибка доступа. Убедитесь, что выбрали 'Общий доступ к аудио'"); }
         }
 
         function endSession() {
@@ -305,8 +314,10 @@
             call.answer();
             call.on('stream', (s) => {
                 document.getElementById('setup').style.display = 'none';
-                document.getElementById('remoteVideo').style.display = 'block';
-                document.getElementById('remoteVideo').srcObject = s;
+                const v = document.getElementById('remoteVideo');
+                v.style.display = 'block';
+                v.muted = false; // Зрители должны слышать
+                v.srcObject = s;
             });
         });
 
